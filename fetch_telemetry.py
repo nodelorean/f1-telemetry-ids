@@ -17,5 +17,5 @@ gasly_lap = session.laps.pick_driver('GAS').pick_fastest()
 telemetry = gasly_lap.get_telemetry()
 
 print(f"\n--- Meilleur tour de Pierre Gasly (Temps: {gasly_lap['LapTime']}) ---")
-# 4. Affichage des 10 premières lignes (avec les données vitesse, accélération, frein, régime moteur, DRS)
-print(telemetry[['Date', 'Speed', 'Throttle', 'Brake', 'RPM', 'DRS']].head(10))
+# Affichage des 8 premières lignes (avec les données vitesse, accélération, frein, régime moteur, DRS)
+print(telemetry[['Date', 'Speed', 'Throttle', 'Brake', 'RPM', 'DRS']].head(8))
