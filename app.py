@@ -50,7 +50,7 @@ def render_telemetry_dashboard(telemetry: pd.DataFrame, driver: str, gp: str) ->
     col3.metric("Avg Speed", f"{telemetry['Speed'].mean():.1f} km/h")
     col4.metric("Telemetry Packets", f"{len(telemetry)}")
 
-    st.markdown("### Circuit Map & Speed Profile")
+    st.markdown("Circuit Map & Speed Profile")
     st.markdown("Hover over the track trajectory to analyze local speed and inputs.")
     
     fig_map = px.scatter(
