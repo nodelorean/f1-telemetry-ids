@@ -27,7 +27,7 @@ try:
         brake = values.get('BRAKE', 0)
         
         #Règles des dectection d'anommalies
-        # 1 : Une F1 ne dépasse pas 360 km/h en ligne droite même avec le DRS ( ou même aspirations si l'on prend les voiture hybride de 2021 a aujo_urd'hui)
+        # 1 : Une F1 ne dépasse pas 360 km/h en ligne droite même avec le DRS ( ou même aspirations si l'on prend les voiture hybride de 2021 a aujourd'hui)
         if speed > 360.0:
             print(f" [ALERTE CYBER/PHYSIQUE] Vitesse anormale détectée ! ({speed} km/h) -> Risque d'injection de données !")
             
