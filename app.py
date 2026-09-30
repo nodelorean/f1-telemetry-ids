@@ -12,27 +12,36 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Constants
-YEARS = list(range(2024, 2017, -1))
+
+YEARS = list(range(2026, 2017, -1))
 SESSIONS = ["FP1", "FP2", "FP3", "Q", "SQ", "S", "R"]
-DRIVERS = ["VER", "PER", "HAM", "RUS", "LEC", "SAI", "NOR", "PIA", "ALO", "STR", 
-           "GAS", "OCO", "ALB", "SAR", "COL", "BOT", "ZHO", "MAG", "HUL", "RIC", "TSU", "LAW"]
 
 def setup_environment() -> None:
     if not os.path.exists('cache'):
         os.makedirs('cache')
     fastf1.Cache.enable_cache('cache')
 
-@st.cache_data(show_spinner="Extraction des donnees FastF1 en cours...")
-def fetch_telemetry_data(year: int, gp: str, session_type: str, driver: str) -> pd.DataFrame:
+@st.cache_data(show_spinner="Fetching F1 calendar...")
+def get_event_schedule(year: int) -> list:
+    """Retrieve the official list of Grand Prix events for a given year."""
+    try:
+        schedule = fastf1.get_event_schedule(year)
+        # Filter out pre-season testing to only keep actual race weekends
+        events = schedule[schedule['EventFormat'] != 'testing']
+        return events['EventName'].tolist()
+    except Exception:
+        return []
+
+@st.cache_data(show_spinner="Downloading session telemetry data...")
+def load_session_data(year: int, gp: str, session_type: str):
+    """Load the complete session data (cached)."""
     session = fastf1.get_session(year, gp, session_type)
     session.load(telemetry=True, weather=False, messages=False)
-    lap = session.laps.pick_driver(driver).pick_fastest()
-    return lap.get_telemetry()
+    return session
 
 def render_telemetry_dashboard(telemetry: pd.DataFrame, driver: str, gp: str) -> None:
     st.title("PERFORMANCE ANALYSIS")
-    st.markdown(f"**Driver:** {driver} | **Event:** {gp.capitalize()}")
+    st.markdown(f"**Driver:** {driver} | **Event:** {gp}")
     st.divider()
 
     col1, col2, col3, col4 = st.columns(4)
@@ -42,9 +51,8 @@ def render_telemetry_dashboard(telemetry: pd.DataFrame, driver: str, gp: str) ->
     col4.metric("Telemetry Packets", f"{len(telemetry)}")
 
     st.markdown("### Circuit Map & Speed Profile")
-    st.markdown("Survolez le trace pour analyser la vitesse et les donnees a un point precis du circuit.")
+    st.markdown("Hover over the track trajectory to analyze local speed and inputs.")
     
-    # Track Map using X and Y coordinates
     fig_map = px.scatter(
         telemetry, x="X", y="Y", color="Speed",
         color_continuous_scale="Turbo",
@@ -56,7 +64,8 @@ def render_telemetry_dashboard(telemetry: pd.DataFrame, driver: str, gp: str) ->
         paper_bgcolor="rgba(0,0,0,0)",
         xaxis=dict(visible=False),
         yaxis=dict(visible=False),
-        coloraxis_colorbar=dict(title="km/h")
+        coloraxis_colorbar=dict(title="km/h"),
+        margin=dict(l=0, r=0, t=0, b=0)
     )
     st.plotly_chart(fig_map, use_container_width=True)
 
@@ -71,7 +80,8 @@ def render_telemetry_dashboard(telemetry: pd.DataFrame, driver: str, gp: str) ->
         yaxis=dict(title='Speed (km/h)'),
         yaxis2=dict(title='Pedal Input (%)', overlaying='y', side='right'),
         hovermode='x unified',
-        plot_bgcolor="rgba(0,0,0,0)"
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=0, r=0, t=30, b=0)
     )
     st.plotly_chart(fig_dynamics, use_container_width=True)
 
@@ -100,10 +110,10 @@ def render_cyber_dashboard(telemetry: pd.DataFrame, is_attack_active: bool) -> N
         with col_metrics:
             st.markdown("#### Incident Report")
             st.warning(
-                f"**Severity:** CRITICAL\n\n"
+                "**Severity:** CRITICAL\n\n"
                 f"**Packets Compromised:** {len(anomalies)}\n\n"
-                f"**Vector:** Suspected Man-in-the-Middle (MitM) or CAN bus injection. "
-                f"Speed parameters exceed physical engine limitations (>360 km/h)."
+                "**Vector:** Suspected Man-in-the-Middle (MitM) or CAN bus injection. "
+                "Speed parameters exceed physical engine limitations (>360 km/h)."
             )
     else:
         st.success("NETWORK SECURE - NO ANOMALIES DETECTED", icon=None)
@@ -119,21 +129,49 @@ def main() -> None:
     st.sidebar.divider()
 
     st.sidebar.title("SESSION PARAMETERS")
+    
+    
     year = st.sidebar.selectbox("Year", YEARS, index=0)
-    gp = st.sidebar.text_input("Grand Prix", "Mexico")
+    
+   
+    gp_list = get_event_schedule(year)
+    if not gp_list:
+        st.sidebar.error("No events found for this year.")
+        return
+    gp = st.sidebar.selectbox("Grand Prix", gp_list)
+    
+    
     session_type = st.sidebar.selectbox("Session", SESSIONS, index=3)
-    driver = st.sidebar.selectbox("Driver", DRIVERS, index=10)
 
     st.sidebar.divider()
     st.sidebar.title("CYBER THREAT SIMULATION")
-    simulate_attack = st.sidebar.checkbox("Enable Data Injection")
+    simulate_attack = st.sidebar.checkbox("Enable Automated Data Injection")
 
+    # Load session to extract actual drivers
     try:
-        telemetry = fetch_telemetry_data(year, gp, session_type, driver)
+        session = load_session_data(year, gp, session_type)
+        
+        # Extract drivers who actually participated in this specific session
+        driver_numbers = session.drivers
+        driver_list = [session.get_driver(d)['Abbreviation'] for d in driver_numbers]
+        driver_list = [d for d in driver_list if isinstance(d, str) and d] # Clean up any empty data
+        
+        if not driver_list:
+            st.error("No telemetry available yet for this session.")
+            return
+
+        # Dynamic Driver Selection
+        driver = st.sidebar.selectbox("Driver", driver_list)
+        
+        # Extract fastest lap for the selected driver
+        lap = session.laps.pick_driver(driver).pick_fastest()
+        telemetry = lap.get_telemetry()
+        
     except Exception as e:
-        st.error(f"Failed to fetch session data. Verify Grand Prix name or driver availability. Details: {e}")
+        st.error(f"Failed to fetch session data. The session may not have occurred yet or telemetry is missing. Details: {e}")
         return
 
+    # Routing based on app mode
     if app_mode == "Telemetry Analysis":
         render_telemetry_dashboard(telemetry, driver, gp)
     elif app_mode == "Cybersecurity SOC":
