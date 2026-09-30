@@ -69,7 +69,7 @@ def render_telemetry_dashboard(telemetry: pd.DataFrame, driver: str, gp: str) ->
     )
     st.plotly_chart(fig_map, use_container_width=True)
 
-    st.markdown("### Speed & Input Dynamics")
+    st.markdown("Speed & Input Dynamics")
     
     fig_dynamics = go.Figure()
     fig_dynamics.add_trace(go.Scatter(x=telemetry['Distance'], y=telemetry['Speed'], name='Speed (km/h)', line=dict(color='#0078d7')))
