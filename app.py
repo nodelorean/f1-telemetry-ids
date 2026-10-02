@@ -73,7 +73,7 @@ def render_telemetry_dashboard(lap1, lap2, driver1: str, driver2: str, c1: str, 
         display_location = f"{gp} (Sepang International Circuit, Malaysia)"
         
     st.title("COMPARATIVE PERFORMANCE ANALYSIS")
-    # On utilise bien {display_location} ici :
+    
     st.markdown(f"**Event:** {display_location} | **Reference:** {driver1} | **Comparator:** {driver2}")
     st.divider()
 
@@ -105,8 +105,8 @@ def render_telemetry_dashboard(lap1, lap2, driver1: str, driver2: str, c1: str, 
     # Tolerance filter: Driver must be at least 2 km/h faster to claim the micro-sector
     speed_diff = tel_merged[f'Speed_{driver1}'] - tel_merged[f'Speed_{driver2}']
     conditions = [
-        speed_diff >= 2.0,
-        speed_diff <= -2.0
+        speed_diff >= 1.0,
+        speed_diff <= -1.0
     ]
     choices = [driver1, driver2]
     tel_merged['Fastest_Driver'] = np.select(conditions, choices, default="Equal")
