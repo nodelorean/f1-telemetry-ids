@@ -284,5 +284,66 @@ def main() -> None:
     elif app_mode == "Cybersecurity SOC":
         render_cyber_dashboard(lap1, simulate_attack)
 
+
+
+def render_team_race_pace(session) -> None:
+    st.markdown("### Team Race Pace & Ranking")
+    
+    #prend en comopte seulement les cleans laps pour une analyse précise
+    valid_laps = session.laps.pick_track_status('1')
+    valid_laps = valid_laps[valid_laps['IsAccurate'] == True].copy()
+
+    if valid_laps.empty:
+        st.warning("Insufficient green flag data for race pace analysis.")
+        return
+
+    #convertis en secondes pour faciliter les calculs
+    valid_laps['LapTime_s'] = valid_laps['LapTime'].dt.total_seconds()
+
+    # calculs des médians pour chaque écuries
+    team_pace = valid_laps.groupby('Team')['LapTime_s'].median().sort_values().reset_index()
+    fastest_time = team_pace['LapTime_s'].min()
+    team_pace['Gap_to_Leader (s)'] = (team_pace['LapTime_s'] - fastest_time).round(3)
+
+    
+    color_map = {}
+    for team in team_pace['Team']:
+        driver = valid_laps[valid_laps['Team'] == team]['DriverNumber'].iloc[0]
+        try:
+            c = session.get_driver(driver)['TeamColor']
+            color_map[team] = f"#{c}" if pd.notna(c) and str(c).strip() != "" else "#ffffff"
+        except Exception:
+            color_map[team] = "#ffffff"
+
+    
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        # Le Boxplot permet de voir la médiane et l'étalement (régularité) des chronos
+        fig = px.box(
+            valid_laps, x="Team", y="LapTime_s", color="Team",
+            category_orders={"Team": team_pace['Team'].tolist()},
+            color_discrete_map=color_map,
+            points="outliers" 
+        )
+        fig.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            showlegend=False,
+            margin=dict(l=0, r=0, t=10, b=0),
+            yaxis_title="Lap Time (Seconds)",
+            xaxis_title=""
+        )
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.markdown("Median Pace Ranking")
+        st.dataframe(
+            team_pace[['Team', 'Gap_to_Leader (s)']],
+            hide_index=True,
+            use_container_width=True
+        )
+
 if __name__ == "__main__":
     main()
