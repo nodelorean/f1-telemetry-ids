@@ -103,7 +103,7 @@ def render_telemetry_dashboard(lap1, lap2, driver1: str, driver2: str, c1: str, 
         suffixes=(f'_{driver1}', f'_{driver2}')
     )
     
-    # Tolerance filter: Driver must be at least 1 km/h faster to claim the micro-sector
+    # Tolerance filter: le pilote doit etre au moins 1 km/h plus rapide pour être considéré comme dominant dans le micro-secteur
     speed_diff = tel_merged[f'Speed_{driver1}'] - tel_merged[f'Speed_{driver2}']
     conditions = [
         speed_diff >= 1.0,
@@ -132,7 +132,7 @@ def render_telemetry_dashboard(lap1, lap2, driver1: str, driver2: str, c1: str, 
         }
     )
     
-    # Graphic override: Make points larger to form a continuous neon line
+    # Graphic override: rend les points plus visibles et moins opaques pour une meilleure lisibilité
     fig_map.update_traces(marker=dict(size=8, opacity=0.9, line=dict(width=0)))
     
     fig_map.update_yaxes(scaleanchor="x", scaleratio=1)
@@ -200,7 +200,7 @@ def render_cyber_dashboard(lap1) -> None:
     # Injection dynamique de l'anomalie 
     scenario = st.session_state.cyber_scenario
     injection_idx = int(len(df_network) * 0.6) # On injecte l'anomalie à 60% du tour
-#mise en place de différent sénarios d'attaque pour le CTF
+    #mise en place de différent sénarios d'attaque pour le CTF
     if scenario == 'Engine_Spoof':
         # Le moteur s'emballe à 22 000 tours/min sur quelques paquets réseau
         df_network.loc[injection_idx:injection_idx+20, 'RPM'] = 22000 
