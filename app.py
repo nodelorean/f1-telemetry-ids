@@ -7,6 +7,7 @@ from plotly.subplots import make_subplots
 import streamlit as st
 import fastf1
 from fastf1 import utils
+import random
 
 # Application Configuration
 st.set_page_config(
@@ -183,43 +184,90 @@ def render_telemetry_dashboard(lap1, lap2, driver1: str, driver2: str, c1: str, 
 
     st.plotly_chart(fig_dynamics, use_container_width=True)
 
-def render_cyber_dashboard(lap1, is_attack_active: bool) -> None:
-    st.title("SECURITY OPERATIONS CENTER (SOC)")
-    st.markdown("Intrusion Detection System - Live Network Traffic Monitoring")
+def render_cyber_dashboard(lap1) -> None:
+    st.title("SECURITY OPERATIONS CENTER (SOC) - LIVE CTF")
+    st.markdown("Analyze the incoming telemetry stream. Detect anomalies injected via CAN bus spoofing or sensor failures.")
     st.divider()
+
+    # Initialisation
+    if 'cyber_scenario' not in st.session_state:
+        st.session_state.cyber_scenario = random.choice(['Safe', 'Engine_Spoof', 'Brake_Failure', 'Gear_Drop'])
+        st.session_state.diagnosis_submitted = False
 
     telemetry = lap1.get_telemetry()
     df_network = telemetry.copy()
 
-    if is_attack_active:
-        injection_index = len(df_network) // 2
-        df_network.loc[injection_index, 'Speed'] = 445.0
-        df_network.loc[injection_index + 1, 'Speed'] = 450.0
+    # Injection dynamique de l'anomalie 
+    scenario = st.session_state.cyber_scenario
+    injection_idx = int(len(df_network) * 0.6) # On injecte l'anomalie à 60% du tour
+#mise en place de différent sénarios d'attaque pour le CTF
+    if scenario == 'Engine_Spoof':
+        # Le moteur s'emballe à 22 000 tours/min sur quelques paquets réseau
+        df_network.loc[injection_idx:injection_idx+20, 'RPM'] = 22000 
+    elif scenario == 'Brake_Failure':
+        # Les freins s'activent à 100% de manière anormale
+        df_network.loc[injection_idx:injection_idx+30, 'Brake'] = 100
+    elif scenario == 'Gear_Drop':
+        # La boîte tombe au point mort
+        df_network.loc[injection_idx:injection_idx+15, 'nGear'] = 0
 
-    anomalies = df_network[df_network['Speed'] > 360.0]
-
-    if not anomalies.empty:
-        st.error("SYSTEM COMPROMISED - ILLEGAL VALUES DETECTED IN TELEMETRY STREAM", icon=None)
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("### Live Telemetry Stream")
         
-        col_alert, col_metrics = st.columns([2, 1])
-        with col_alert:
-            st.markdown("#### Detected Payload Anomalies")
-            st.dataframe(anomalies[['Date', 'Time', 'Speed', 'RPM', 'Throttle', 'Brake']], use_container_width=True)
+        # Création du moniteur de surveillance réseau
+        fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.05,
+                            subplot_titles=("Engine Speed (RPM)", "Brake Pressure (%)", "Gear Selection"))
         
-        with col_metrics:
-            st.markdown("#### Incident Report")
-            st.warning(
-                "**Severity:** CRITICAL\n\n"
-                f"**Packets Compromised:** {len(anomalies)}\n\n"
-                "**Vector:** Suspected Man-in-the-Middle (MitM) or CAN bus injection. "
-                "Speed parameters exceed physical engine limitations (>360 km/h)."
-            )
-    else:
-        st.success("NETWORK SECURE - NO ANOMALIES DETECTED", icon=None)
+        fig.add_trace(go.Scatter(x=df_network['Distance'], y=df_network['RPM'], name='RPM', line=dict(color='#00ffcc')), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df_network['Distance'], y=df_network['Brake'], name='Brake', line=dict(color='#ff3333')), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df_network['Distance'], y=df_network['nGear'], name='Gear', line=dict(color='#ffff00')), row=3, col=1)
+        
+        fig.update_layout(height=600, margin=dict(l=0, r=0, t=30, b=0), plot_bgcolor="rgba(0,0,0,0)", hovermode='x unified')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("### Raw UDP Traffic Log")
-    st.dataframe(df_network[['Time', 'X', 'Y', 'Speed', 'RPM', 'nGear', 'Throttle', 'Brake']].tail(15), use_container_width=True)
+    with col2:
+        st.markdown("Threat Detection Panel")
+        st.info("Investigate the telemetry traces. Is the data integrity compromised?")
+        
+        # Interface de réponse de l'utilisateur
+        options_map = {
+            "Pending Analysis...": "None",
+            "System Safe (Normal Data)": "Safe",
+            "Critical: Engine CAN Spoofing (RPM > 15k)": "Engine_Spoof",
+            "Critical: Brake-by-Wire Override": "Brake_Failure",
+            "Critical: Gearbox/Hydraulic Signal Drop": "Gear_Drop"
+        }
+        
+        user_selection = st.selectbox("Select Diagnosis:", list(options_map.keys()))
+        
+        if st.button("Submit Report", type="primary", use_container_width=True):
+            if options_map[user_selection] == "None":
+                st.warning("Please select a diagnosis before submitting.")
+            else:
+                st.session_state.diagnosis_submitted = True
+            
+        if st.session_state.diagnosis_submitted:
+            st.divider()
+            
+            # Vérification du résultat
+            if options_map[user_selection] == scenario:
+                st.success("**THREAT NEUTRALIZED**\n\nExcellent work, Analyst. You correctly identified the network status.")
+            else:
+                actual_state_text = [k for k, v in options_map.items() if v == scenario][0]
+                st.error(f" **SYSTEM BREACHED**\n\nIncorrect diagnosis. The actual network status was: **{actual_state_text}**")
+            
+            # Bouton pour relancer un niveau
+            if st.button("Load Next Scenario", use_container_width=True):
+                st.session_state.cyber_scenario = random.choice(['Safe', 'Engine_Spoof', 'Brake_Failure', 'Gear_Drop'])
+                st.session_state.diagnosis_submitted = False
+                st.rerun()
 
+    st.markdown("Raw UDP Traffic Log (Decrypted)")
+    st.dataframe(df_network[['Distance', 'Speed', 'RPM', 'nGear', 'Throttle', 'Brake']].iloc[injection_idx-5 : injection_idx+25], use_container_width=True)
+#rythme de course des écuries et classement basé sur les tours propres
 def render_team_race_pace(session) -> None:
     st.markdown("### Team Race Pace & Ranking")
     
@@ -332,9 +380,7 @@ def main() -> None:
         return
 
     st.sidebar.divider()
-    if app_mode == "Cybersecurity SOC":
-        st.sidebar.title("CYBER THREAT SIMULATION")
-        simulate_attack = st.sidebar.checkbox("Enable Automated Data Injection")
+    st.sidebar.divider()
 
     if app_mode == "Telemetry Analysis":
         render_telemetry_dashboard(lap1, lap2, driver1, driver2, color1, color2, gp, year)
@@ -345,7 +391,6 @@ def main() -> None:
             render_team_race_pace(session)
             
     elif app_mode == "Cybersecurity SOC":
-        render_cyber_dashboard(lap1, simulate_attack)
-
+        render_cyber_dashboard(lap1)
 if __name__ == "__main__":
     main()
